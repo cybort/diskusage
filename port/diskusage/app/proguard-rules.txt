@@ -1,0 +1,5 @@
+-keep class com.google.android.diskusage.privilege.ScanMain { *; }
+-keep class com.google.android.diskusage.privilege.ScanUserService { *; }
+-keep class com.google.android.diskusage.privilege.ProtocolScanner { *; }
+-keep class com.google.android.diskusage.privilege.IScanService { *; }
+-keep class com.google.android.diskusage.privilege.IScanService$Stub { *; }
