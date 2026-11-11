@@ -26,6 +26,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import com.google.android.diskusage.R;
 import com.google.android.diskusage.databinding.ActivityCommonBinding;
@@ -33,8 +35,10 @@ import com.google.android.diskusage.filesystem.entity.FileSystemEntry;
 import com.google.android.diskusage.filesystem.mnt.MountPoint;
 import com.google.android.diskusage.filesystem.mnt.RootMountPoint;
 import com.google.android.diskusage.privilege.PrivilegeBroker;
+import com.google.android.diskusage.privilege.ShizukuScan;
 import com.google.android.diskusage.utils.DeviceHelper;
 import com.google.android.diskusage.utils.IOHelper;
+import rikka.shizuku.Shizuku;
 import timber.log.Timber;
 import java.io.BufferedReader;
 import java.util.ArrayList;
@@ -45,7 +49,12 @@ import java.util.TreeMap;
 
 public class SelectActivity extends Activity {
   private static final String BUNDLE_KEYS = "keys";
-  private AlertDialog dialog;
+  private AlertDialog activeDialog;
+  private boolean isMainDialogShowing;
+  private boolean probingRoot;
+  private int probeGeneration;
+  private int lastProcMountsChecksum = -1;
+  private Shizuku.OnRequestPermissionResultListener shizukuListener;
   Map<String, Bundle> bundles = new TreeMap<>();
   ArrayList<Runnable> actionList = new ArrayList<>();
   private boolean expandRootMountPoints;
@@ -81,10 +90,13 @@ public class SelectActivity extends Activity {
     }
   }
 
-  public Handler handler = new Handler();
+  public Handler handler = new Handler(Looper.getMainLooper());
   public Runnable checkForMountsUpdates = new Runnable() {
     @Override
     public void run() {
+      if (isFinishing() || isDestroyed()) {
+        return;
+      }
       boolean reload = false;
       try {
         BufferedReader reader = IOHelper.getProcMountsReader();
@@ -94,14 +106,16 @@ public class SelectActivity extends Activity {
           checksum += line.length();
         }
         reader.close();
-        if (checksum != RootMountPoint.checksum) {
-          Timber.d("%s vs %s", checksum, RootMountPoint.checksum);
+        if (lastProcMountsChecksum == -1) {
+          lastProcMountsChecksum = checksum;
+        } else if (checksum != lastProcMountsChecksum) {
+          Timber.d("%s vs %s", checksum, lastProcMountsChecksum);
+          lastProcMountsChecksum = checksum;
           reload = true;
         }
       } catch (Throwable ignored) {}
 
-      if (reload) {
-        dialog.hide();
+      if (reload && !probingRoot && isMainDialogShowing) {
         MountPoint.reset();
         makeDialog();
       }
@@ -109,23 +123,24 @@ public class SelectActivity extends Activity {
     }
   };
 
+  private void dismissActiveDialog() {
+    isMainDialogShowing = false;
+    if (activeDialog != null) {
+      if (activeDialog.isShowing()) {
+        activeDialog.dismiss();
+      }
+      activeDialog = null;
+    }
+  }
 
   public void makeDialog() {
+    if (isFinishing() || isDestroyed()) return;
+    dismissActiveDialog();
     ArrayList<String> options = new ArrayList<>();
     actionList.clear();
 
     options.add(PrivilegeBroker.statusLabel(this));
-    actionList.add(() -> {
-      PrivilegeBroker.requestShizuku(this);
-      new Thread(() -> {
-        PrivilegeBroker.probeRoot();
-        handler.post(() -> {
-          if (dialog != null && dialog.isShowing()) dialog.hide();
-          MountPoint.reset();
-          makeDialog();
-        });
-      }).start();
-    });
+    actionList.add(this::showPrivilegeOptionsDialog);
 
 //    PortableFile[] fileDirs = DataSource.get().getExternalFilesDirs(this);
     for (MountPoint mountPoint : MountPoint.getMountPoints(this)) {
@@ -154,44 +169,108 @@ public class SelectActivity extends Activity {
         actionList.add(new ShowHideAction());
       } else {
         options.add("[Root required]");
-        actionList.add(() -> new Thread(() -> {
-          PrivilegeBroker.probeRoot();
-          handler.post(() -> {
-            expandRootMountPoints = true;
-            if (dialog != null && dialog.isShowing()) dialog.hide();
-            MountPoint.reset();
-            makeDialog();
-          });
-        }).start());
-
+        actionList.add(this::probeRootInSelect);
       }
     }
 
     final String[] optionsArray = options.toArray(new String[0]);
 
-    dialog = new AlertDialog.Builder(this)
+    activeDialog = new AlertDialog.Builder(this)
     .setItems(optionsArray,
-            (dialog, which) -> actionList.get(which).run())
+            (d, which) -> {
+              isMainDialogShowing = false;
+              actionList.get(which).run();
+            })
     .setTitle(R.string.ask_view)
-    .setOnCancelListener(dialog -> finish()).create();
-    /*try {
-      if (debugDataSourceBridge != null) {
-        dialog.getListView().setOnItemLongClickListener(
-            new OnItemLongClickListener() {
-          @Override
-          public boolean onItemLongClick(
-              AdapterView<?> arg0, View arg1, int arg2, long arg3) {
-            debugUnhidden = true;
-            dialog.hide();
-            makeDialog();
-            return true;
-          }
-        });
-      }
-    } catch (Throwable t) {
-      // api 3
-    }*/
-    dialog.show();
+    .setOnCancelListener(d -> {
+      isMainDialogShowing = false;
+      finish();
+    }).create();
+    isMainDialogShowing = true;
+    activeDialog.show();
+  }
+
+  private void showPrivilegeOptionsDialog() {
+    if (isFinishing() || isDestroyed()) return;
+    dismissActiveDialog();
+    activeDialog = new AlertDialog.Builder(this)
+        .setTitle(R.string.dialog_privilege_options_title)
+        .setMessage(R.string.dialog_privilege_desc)
+        .setPositiveButton(R.string.button_shizuku, (d, w) -> requestShizukuInSelect())
+        .setNeutralButton(R.string.button_magisk, (d, w) -> probeRootInSelect())
+        .setNegativeButton(R.string.button_back, (d, w) -> makeDialog())
+        .setOnCancelListener(d -> makeDialog())
+        .create();
+    activeDialog.show();
+  }
+
+  private void requestShizukuInSelect() {
+    if (!ShizukuScan.isInstalled(this) || !ShizukuScan.isRunning()) {
+      PrivilegeBroker.requestShizuku(this);
+      Toast.makeText(this, R.string.dialog_shizuku_missing, Toast.LENGTH_LONG).show();
+      makeDialog();
+      return;
+    }
+    if (ShizukuScan.isGranted()) {
+      MountPoint.reset();
+      makeDialog();
+      return;
+    }
+    if (shizukuListener != null) {
+      PrivilegeBroker.unlistenForShizuku(shizukuListener);
+    }
+    shizukuListener = (requestCode, grantResult) -> {
+      if (requestCode != PrivilegeBroker.REQUEST_CODE) return;
+      PrivilegeBroker.unlistenForShizuku(shizukuListener);
+      shizukuListener = null;
+      handler.post(() -> {
+        if (isFinishing() || isDestroyed()) return;
+        MountPoint.reset();
+        makeDialog();
+      });
+    };
+    PrivilegeBroker.listenForShizuku(shizukuListener);
+    PrivilegeBroker.requestShizuku(this);
+  }
+
+  private void probeRootInSelect() {
+    if (isFinishing() || isDestroyed()) return;
+    dismissActiveDialog();
+    probingRoot = true;
+    final int gen = ++probeGeneration;
+    activeDialog = new AlertDialog.Builder(this)
+        .setTitle(R.string.dialog_root_probing_title)
+        .setMessage(R.string.dialog_root_probing_desc)
+        .setCancelable(false)
+        .create();
+    activeDialog.show();
+    new Thread(() -> {
+      boolean granted = PrivilegeBroker.probeRoot() || ShizukuScan.isRootMode();
+      handler.post(() -> {
+        if (gen != probeGeneration || isFinishing() || isDestroyed()) return;
+        probingRoot = false;
+        dismissActiveDialog();
+        if (granted) {
+          expandRootMountPoints = true;
+          MountPoint.reset();
+          makeDialog();
+        } else {
+          showRootUnavailableDialog();
+        }
+      });
+    }).start();
+  }
+
+  private void showRootUnavailableDialog() {
+    if (isFinishing() || isDestroyed()) return;
+    dismissActiveDialog();
+    activeDialog = new AlertDialog.Builder(this)
+        .setTitle(R.string.dialog_root_unavailable_title)
+        .setMessage(R.string.dialog_root_unavailable_desc)
+        .setPositiveButton(R.string.button_back, (d, w) -> makeDialog())
+        .setOnCancelListener(d -> makeDialog())
+        .create();
+    activeDialog.show();
   }
 
   @Override
@@ -215,9 +294,21 @@ public class SelectActivity extends Activity {
 
   @Override
   protected void onPause() {
-    if (dialog.isShowing()) dialog.dismiss();
+    probeGeneration++;
+    probingRoot = false;
+    dismissActiveDialog();
     handler.removeCallbacks(checkForMountsUpdates);
     super.onPause();
+  }
+
+  @Override
+  protected void onDestroy() {
+    if (shizukuListener != null) {
+      PrivilegeBroker.unlistenForShizuku(shizukuListener);
+      shizukuListener = null;
+    }
+    dismissActiveDialog();
+    super.onDestroy();
   }
 
   @Override

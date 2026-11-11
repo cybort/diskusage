@@ -48,7 +48,17 @@ public class PermissionRequestActivity extends Activity {
     private final static int PERMISSION_REQUEST_USAGE_ACCESS_CODE = 11;
     private final static int PERMISSION_REQUEST_EXTERNAL_STORAGE_CODE = 12;
     private boolean offeredPrivilege;
+    private AlertDialog activeDialog;
     private Shizuku.OnRequestPermissionResultListener shizukuListener;
+
+    private void dismissActiveDialog() {
+        if (activeDialog != null) {
+            if (activeDialog.isShowing()) {
+                activeDialog.dismiss();
+            }
+            activeDialog = null;
+        }
+    }
 
     @Override
     protected void onDestroy() {
@@ -56,6 +66,7 @@ public class PermissionRequestActivity extends Activity {
             PrivilegeBroker.unlistenForShizuku(shizukuListener);
             shizukuListener = null;
         }
+        dismissActiveDialog();
         super.onDestroy();
     }
 
@@ -83,7 +94,7 @@ public class PermissionRequestActivity extends Activity {
             return;
         }
 
-        new AlertDialog.Builder(this)
+        activeDialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.dialog_usage_access_title)
                 .setMessage(R.string.dialog_usage_access_desc)
                 .setPositiveButton(android.R.string.ok, (dialogInterface, i1) -> {
@@ -91,34 +102,84 @@ public class PermissionRequestActivity extends Activity {
                     startActivityForResult(intent, PERMISSION_REQUEST_USAGE_ACCESS_CODE);
                 })
                 .setNegativeButton(android.R.string.cancel, (dialogInterface, i12) ->
-                        forwardToDiskUsage()).create().show();
+                        forwardToDiskUsage()).create();
+        activeDialog.show();
 
         requestExternalStoragePermission();
     }
 
     public void forwardToDiskUsage() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
         if (!offeredPrivilege && Build.VERSION.SDK_INT >= 33) {
             offeredPrivilege = true;
-            new AlertDialog.Builder(this)
+            dismissActiveDialog();
+            activeDialog = new AlertDialog.Builder(this)
                     .setTitle(R.string.dialog_privilege_title)
                     .setMessage(R.string.dialog_privilege_desc)
                     .setPositiveButton(R.string.button_shizuku, (dialogInterface, which) -> requestShizukuThenForward())
-                    .setNeutralButton(R.string.button_magisk, (dialogInterface, which) -> {
-                        new Thread(() -> {
-                            PrivilegeBroker.probeRoot();
-                            runOnUiThread(this::forwardToDiskUsage);
-                        }).start();
-                    })
+                    .setNeutralButton(R.string.button_magisk, (dialogInterface, which) -> probeRootThenForward())
                     .setNegativeButton(R.string.button_skip, (dialogInterface, which) -> forwardToDiskUsage())
                     .setOnCancelListener(dialog -> forwardToDiskUsage())
-                    .show();
+                    .create();
+            activeDialog.show();
             return;
         }
+        dismissActiveDialog();
         Intent input = getIntent();
         Intent diskusage = new Intent(this, DiskUsage.class);
         diskusage.putExtra(DiskUsage.KEY_KEY, input.getStringExtra(DiskUsage.KEY_KEY));
         diskusage.putExtra(DiskUsage.STATE_KEY, input.getBundleExtra(DiskUsage.STATE_KEY));
         startActivityForResult(diskusage, DISKUSAGE_REQUEST_CODE);
+    }
+
+    private void probeRootThenForward() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        dismissActiveDialog();
+        activeDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.dialog_root_probing_title)
+                .setMessage(R.string.dialog_root_probing_desc)
+                .setCancelable(false)
+                .create();
+        activeDialog.show();
+        new Thread(() -> {
+            boolean granted = PrivilegeBroker.probeRoot() || ShizukuScan.isRootMode();
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                dismissActiveDialog();
+                if (granted) {
+                    forwardToDiskUsage();
+                } else {
+                    showRootUnavailableDialog();
+                }
+            });
+        }).start();
+    }
+
+    private void showRootUnavailableDialog() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        dismissActiveDialog();
+        activeDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.dialog_root_unavailable_title)
+                .setMessage(R.string.dialog_root_unavailable_desc)
+                .setPositiveButton(R.string.button_continue_scan, (d, w) -> forwardToDiskUsage())
+                .setNeutralButton(R.string.button_back, (d, w) -> {
+                    offeredPrivilege = false;
+                    forwardToDiskUsage();
+                })
+                .setOnCancelListener(d -> {
+                    offeredPrivilege = false;
+                    forwardToDiskUsage();
+                })
+                .create();
+        activeDialog.show();
     }
 
     private void requestShizukuThenForward() {
@@ -136,7 +197,11 @@ public class PermissionRequestActivity extends Activity {
             if (requestCode != PrivilegeBroker.REQUEST_CODE) return;
             PrivilegeBroker.unlistenForShizuku(shizukuListener);
             shizukuListener = null;
-            runOnUiThread(this::forwardToDiskUsage);
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    forwardToDiskUsage();
+                }
+            });
         };
         PrivilegeBroker.listenForShizuku(shizukuListener);
         PrivilegeBroker.requestShizuku(this);

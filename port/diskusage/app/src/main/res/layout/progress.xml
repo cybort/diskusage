@@ -16,17 +16,17 @@
 
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="wrap_content"
-    android:layout_height="match_parent">
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
     <ProgressBar
         android:id="@+id/progress"
         style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dip"
+        android:layout_marginStart="10dip"
         android:layout_marginTop="12dip"
-        android:layout_marginRight="10dip"
+        android:layout_marginEnd="10dip"
         android:layout_marginBottom="1dip"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -36,26 +36,25 @@
         android:id="@+id/progress_percent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dip"
-        android:layout_marginRight="10dip"
-        android:inputType="textNoSuggestions"
+        android:layout_marginStart="10dip"
+        android:gravity="start"
+        android:minWidth="42dip"
         android:paddingBottom="12dip"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:singleLine="true"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/progress" />
 
     <TextView
         android:id="@+id/progress_details"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="50dip"
+        android:layout_marginStart="8dip"
         android:layout_marginEnd="15dip"
-        android:ellipsize="none"
+        android:ellipsize="middle"
         android:gravity="start"
-        android:inputType="textNoSuggestions"
         android:paddingBottom="12dip"
         android:singleLine="true"
+        app:layout_constraintBaseline_toBaselineOf="@id/progress_percent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/progress" />
+        app:layout_constraintStart_toEndOf="@id/progress_percent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

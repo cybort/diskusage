@@ -105,4 +105,16 @@
     <string name="button_magisk">Use root</string>
     <string name="button_skip">Skip</string>
     <string name="dialog_shizuku_missing">Install Shizuku and start it, then grant DiskUsage.</string>
+    <string name="dialog_privilege_options_title">Privileged access</string>
+    <string name="dialog_root_probing_title">Checking root access</string>
+    <string name="dialog_root_probing_desc">Probing su binary and waiting for root manager response…</string>
+    <string name="dialog_root_unavailable_title">Root access unavailable</string>
+    <string name="dialog_root_unavailable_desc">No working root binary (su) was found or root permission was denied. You can continue scanning with standard access or use Shizuku instead.</string>
+    <string name="button_continue_scan">Continue scan</string>
+    <string name="button_back">Back</string>
+    <string name="privilege_state_granted">Granted</string>
+    <string name="privilege_state_not_granted">Not granted</string>
+    <string name="privilege_state_not_running">Not running</string>
+    <string name="privilege_state_not_installed">Not installed</string>
+    <string name="error_root_required_for_path">Root access (Magisk, KernelSU, APatch, or Shizuku as root) is required to read %s</string>
 </resources>
