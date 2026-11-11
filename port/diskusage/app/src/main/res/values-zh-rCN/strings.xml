@@ -88,4 +88,16 @@
     <string name="button_magisk">使用 Root</string>
     <string name="button_skip">跳过</string>
     <string name="dialog_shizuku_missing">请先安装并启动 Shizuku，再给磁盘详情授权。</string>
+    <string name="dialog_privilege_options_title">高权限访问</string>
+    <string name="dialog_root_probing_title">正在检测 Root 权限</string>
+    <string name="dialog_root_probing_desc">正在检测 su 并等待 Root 管理器响应…</string>
+    <string name="dialog_root_unavailable_title">无法获取 Root 权限</string>
+    <string name="dialog_root_unavailable_desc">未检测到可用的 su，或 Root 授权被拒绝。您可以继续使用当前权限扫描，或改用 Shizuku。</string>
+    <string name="button_continue_scan">继续扫描</string>
+    <string name="button_back">返回</string>
+    <string name="privilege_state_granted">已授权</string>
+    <string name="privilege_state_not_granted">未授权</string>
+    <string name="privilege_state_not_running">未启动</string>
+    <string name="privilege_state_not_installed">未安装</string>
+    <string name="error_root_required_for_path">需要 Magisk、KernelSU、APatch，或以 root 启动的 Shizuku 才能读取 %s</string>
 </resources>

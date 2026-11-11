@@ -160,9 +160,17 @@ public class ScanProgressDialog extends AlertDialog {
     }
   }
 
+  public static double computeProgressRatio(long progress, long max) {
+    if (max <= 0) {
+      return 0.0;
+    }
+    return Math.min(1.0, Math.max(0.0, (double) progress / (double) max));
+  }
+
   public void onProgressChanged() {
     /* Update the number and percent */
-    double percent = (double) progress / (double) max * basePercent + (1 - basePercent);
+    double ratio = computeProgressRatio(progress, max);
+    double percent = ratio * basePercent + (1 - basePercent);
     binding.progress.setProgress((int)(percent * 10000));
     binding.progressDetails.setText(details);  // progressNumber.setText(String.format(format, progress, max));
     SpannableString tmp = new SpannableString(progressPercentFormat.format(percent));
@@ -187,7 +195,7 @@ public class ScanProgressDialog extends AlertDialog {
   double basePercent = 1;
 
   public void switchToSecondary() {
-    basePercent = 1 - (double) progress / (double) max;
+    basePercent = 1 - computeProgressRatio(progress, max);
   }
 
   public void setProgress(long progress, CharSequence details) {

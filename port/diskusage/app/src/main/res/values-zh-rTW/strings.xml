@@ -81,4 +81,22 @@
     <string name="dialog_usage_access_desc">要允許磁碟詳情獲取已安裝程式清單嗎？</string>
     <string name="dialog_external_storage_access_error">已拒絕存取外部儲存。</string>
     <string name="about_view_source_code"><![CDATA[在 %s 上查看原始碼]]></string>
+    <string name="dialog_privilege_title">還有目錄未被列出</string>
+    <string name="dialog_privilege_desc">從 Android 13 起，「所有檔案存取」也無法列出 Android/data 與 Android/obb，這些空間會歸入「系統資料」。Shizuku（shell）或 Magisk、KernelSU、APatch（root，mount-master）可以讀取。若跳過，仍會以目前權限能看到的部分繼續掃描。</string>
+    <string name="button_shizuku">使用 Shizuku</string>
+    <string name="button_magisk">使用 Root</string>
+    <string name="button_skip">跳過</string>
+    <string name="dialog_shizuku_missing">請先安裝並啟動 Shizuku，再授權給磁碟詳情。</string>
+    <string name="dialog_privilege_options_title">高權限存取</string>
+    <string name="dialog_root_probing_title">正在偵測 Root 權限</string>
+    <string name="dialog_root_probing_desc">正在偵測 su 並等待 Root 管理器回應…</string>
+    <string name="dialog_root_unavailable_title">無法取得 Root 權限</string>
+    <string name="dialog_root_unavailable_desc">未偵測到可用的 su，或 Root 授權遭拒絕。您可以繼續使用目前權限掃描，或改用 Shizuku。</string>
+    <string name="button_continue_scan">繼續掃描</string>
+    <string name="button_back">返回</string>
+    <string name="privilege_state_granted">已授權</string>
+    <string name="privilege_state_not_granted">未授權</string>
+    <string name="privilege_state_not_running">未啟動</string>
+    <string name="privilege_state_not_installed">未安裝</string>
+    <string name="error_root_required_for_path">需要 Magisk、KernelSU、APatch，或以 root 啟動的 Shizuku 才能讀取 %s</string>
 </resources>

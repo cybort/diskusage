@@ -59,7 +59,7 @@ object SuShell {
                 continue
             }
             val out = process.inputStream.bufferedReader().readText()
-            if (out.contains("uid=0")) {
+            if (process.exitValue() == 0 && isRootIdOutput(out)) {
                 granted = true
                 suBin = bin
                 magisk = flavor(bin)
@@ -108,17 +108,28 @@ object SuShell {
         } catch (_: Exception) {
             null
         }
-        return listOfNotNull(
+        val raw = listOfNotNull(
             fromPath,
-            "su",
+            if (fromPath == null) "su" else null,
             "/debug_ramdisk/su",
             "/system/bin/su",
             "/system/xbin/su",
             "/sbin/su",
             "/data/adb/ksu/bin/su",
             "/data/adb/ap/bin/su",
-        ).distinct()
+        )
+        return filterExistingCandidates(raw) { File(it).exists() }
     }
+
+    internal fun filterExistingCandidates(
+        candidates: List<String>,
+        exists: (String) -> Boolean,
+    ): List<String> = candidates
+        .filter { !it.startsWith("/") || exists(it) }
+        .distinct()
+
+    internal fun isRootIdOutput(output: String): Boolean =
+        Regex("""\buid=0\b""").containsMatchIn(output)
 
     private fun flavor(bin: String): Boolean {
         return try {

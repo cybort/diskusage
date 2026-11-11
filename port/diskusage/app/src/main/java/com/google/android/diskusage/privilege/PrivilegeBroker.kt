@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import com.google.android.diskusage.R
 import com.google.android.diskusage.utils.AppHelper
 import java.io.File
 import java.io.InputStream
@@ -33,17 +34,21 @@ object PrivilegeBroker {
 
     @JvmStatic
     fun statusLabel(context: Context): String {
+        val granted = context.getString(R.string.privilege_state_granted)
+        val notGranted = context.getString(R.string.privilege_state_not_granted)
+        val notRunning = context.getString(R.string.privilege_state_not_running)
+        val notInstalled = context.getString(R.string.privilege_state_not_installed)
         val shizuku = when {
             ShizukuScan.isRootMode() -> "Shizuku · root"
             ShizukuScan.isGranted() -> "Shizuku · shell"
-            ShizukuScan.isRunning() -> "Shizuku · 未授权"
-            ShizukuScan.isInstalled(context) -> "Shizuku · 未启动"
-            else -> "Shizuku · 未安装"
+            ShizukuScan.isRunning() -> "Shizuku · $notGranted"
+            ShizukuScan.isInstalled(context) -> "Shizuku · $notRunning"
+            else -> "Shizuku · $notInstalled"
         }
         val root = when {
-            SuShell.isReady() -> "Root · 已授权"
-            SuShell.hasManager(context) -> "Root · 未授权"
-            else -> "Root · 未安装"
+            SuShell.isReady() -> "Root · $granted"
+            SuShell.hasManager(context) -> "Root · $notGranted"
+            else -> "Root · $notInstalled"
         }
         return "$shizuku  /  $root"
     }
@@ -117,7 +122,9 @@ object PrivilegeBroker {
         if (rootRequired || isPrivateData(path)) {
             if (SuShell.isReady() || SuShell.probe()) return Tier.ROOT
             if (ShizukuScan.isRootMode()) return Tier.SHIZUKU
-            throw java.io.IOException("需要 Magisk、KernelSU、APatch，或以 root 启动的 Shizuku 才能读取 $path")
+            throw java.io.IOException(
+                AppHelper.appContext.getString(R.string.error_root_required_for_path, path),
+            )
         }
         if (Build.VERSION.SDK_INT >= 33 && restrictedTree(path)) {
             if (ShizukuScan.isGranted()) return Tier.SHIZUKU
